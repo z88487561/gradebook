@@ -95,7 +95,7 @@ function stuCharts(s,up,noRank){
  if(!noRank&&rk.some(r=>r[0]))h+='<h3>總分名次變化</h3>'+line(lb,[{name:'名次',v:rk.map(r=>r[0])}],{min:1,max:mx,inv:true,lab:true});
  const r0=rs.at(-1),pr=pairsOf(r0);
  if(pr.length>=3){const av=pr.map(([e,id])=>avg(parts(e).map(p=>sc(e,p.id,id)).filter(x=>x!=null))??0);
-  h+=`<h3>最近一次：${esc(r0.label)}</h3>`+radar(pr.map(([e,id])=>SB(e.grade,id)?.name||'?'),pr.map(([e,id])=>sc(e,s.id,id)),av)}
+  h+=(noRank?'<h3>最近一次考試能力雷達圖（與年級平均對照）</h3>':`<h3>最近一次：${esc(r0.label)}</h3>`)+radar(pr.map(([e,id])=>SB(e.grade,id)?.name||'?'),pr.map(([e,id])=>sc(e,s.id,id)),av)}
  return h}
 /* report card (JPG) */
 const avg=a=>a.length?a.reduce((x,y)=>x+y,0)/a.length:null,f1=x=>x==null?'–':x.toFixed(1);
