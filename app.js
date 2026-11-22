@@ -91,7 +91,7 @@ function stuCharts(s,up,noRank){
  const byName=(r,n)=>{const p=pairsOf(r).find(([e,id])=>SB(e.grade,id)?.name===n);return p?sc(p[0],s.id,p[1])??null:null};
  const ser=nm.map(n=>({name:n,v:rs.map(r=>byName(r,n))})).filter(x=>x.v.some(v=>v!=null));
  const rk=rs.map(r=>{const m=rdRanks(r);return[m[s.id]??null,Object.keys(m).length]}),mx=Math.max(2,...rk.map(r=>r[1]));
- let h='<h3>各科成績趨勢</h3>'+line(lb,ser);
+ let h=noRank?'':'<h3>各科成績趨勢</h3>'+line(lb,ser);
  if(!noRank&&rk.some(r=>r[0]))h+='<h3>總分名次變化</h3>'+line(lb,[{name:'名次',v:rk.map(r=>r[0])}],{min:1,max:mx,inv:true,lab:true});
  const r0=rs.at(-1),pr=pairsOf(r0);
  if(pr.length>=3){const av=pr.map(([e,id])=>avg(parts(e).map(p=>sc(e,p.id,id)).filter(x=>x!=null))??0);
