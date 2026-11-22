@@ -2,7 +2,7 @@
 const $=s=>document.querySelector(s),esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])),uid=()=>Math.random().toString(36).slice(2,9),cmp=(a,b)=>a.localeCompare(b,'zh-Hant');
 const norm=d=>({memos:[],tags:['需追蹤','進步中'],...d});let S=norm({grades:[],students:[],exams:[],scores:{}}),ui={tab:'exams',exam:null,stu:null,mt:[],tf:'',mode:'input',subj:null,sort:'total',ng:null,baks:[]},fm='csv';
 /* storage: IndexedDB + rolling auto-backups */
-const dbp=new Promise((ok,no)=>{const r=indexedDB.open('gradebook',1);r.onupgradeneeded=()=>r.result.createObjectStore('kv');r.onsuccess=()=>ok(r.result);r.onerror=()=>no(r.error)});
+const dbp=new Promise((ok,no)=>{const r=indexedDB.open('gradebook',1);r.onupgradeneeded=()=>r.result.createObjectStore('kv');r.onsuccess=()=>{r.result.onversionchange=()=>r.result.close();ok(r.result)};r.onerror=()=>no(r.error)});
 const kv=async(m,k,v)=>{const d=await dbp;return new Promise((ok,no)=>{const o=d.transaction('kv',m==='get'||m==='keys'?'readonly':'readwrite').objectStore('kv');const r=m==='get'?o.get(k):m==='put'?o.put(v,k):m==='del'?o.delete(k):o.getAllKeys();r.onsuccess=()=>ok(r.result);r.onerror=()=>no(r.error)})};
 let tm;const save=()=>{clearTimeout(tm);tm=setTimeout(async()=>{await kv('put','state',S);await backup()},300)};
 async function backup(){const ks=(await kv('keys')).filter(k=>k.startsWith('bak:')).sort();if(ks.length&&Date.now()-+ks.at(-1).slice(4)<6e5)return;await kv('put','bak:'+Date.now(),JSON.stringify(S));for(const k of ks.slice(0,Math.max(0,ks.length-7)))await kv('del',k)}
@@ -24,7 +24,7 @@ const needG='<p class="hint">請先到「設定」新增年級與科目。</p>';
 function render(){
  document.querySelectorAll('#tabs button').forEach(b=>b.classList.toggle('on',b.dataset.tab===ui.tab));
  const e=ui.exam&&EX(ui.exam),p=!e&&ui.stu&&ST(ui.stu);
- $('#top').innerHTML=e||p?`<button data-act="back" aria-label="返回">‹</button><h1>${esc((e||p).name)}</h1>`:'<h1>成績簿</h1>';
+ $('#ttl').innerHTML=e||p?`<button data-act="back" aria-label="返回">‹</button><h1>${esc((e||p).name)}</h1>`:'<h1>成績簿</h1>';
  $('#app').innerHTML=e?vExam(e):p?vStu(p):ui.tab==='exams'?vExams():ui.tab==='students'?vStudents():vSettings();
 }
 function vExams(){

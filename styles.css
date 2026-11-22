@@ -34,6 +34,7 @@ td:first-child{color:var(--dg);font-weight:700}
 td:nth-child(2),th:nth-child(2){text-align:left;position:sticky;left:0;background:var(--bg)}
 .hint,small{color:var(--mut)}.lnk{border:0;background:none;color:var(--ac);padding:2px 6px;font-size:14px}
 .btns{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0}.inl{display:flex;gap:8px}.inl input{margin:0}
+#ttl{display:flex;align-items:center;gap:8px;flex:1;min-width:0}#pwa-slot{display:flex;gap:6px;align-items:center}
 #top button{padding:4px 12px;font-size:20px}
 
 .nm{border:0;background:none;padding:0 6px 0 0;font-weight:700;text-align:left}
