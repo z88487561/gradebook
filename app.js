@@ -84,7 +84,7 @@ function examCharts(e,P,key,fn){
  const v=P.map(s=>fn(s.id)).filter(x=>x!=null).map(x=>key==='total'?x/e.subjects.length:x);if(!v.length)return'';
  const it=e.subjects.map(id=>{const a=P.map(s=>sc(e,s.id,id)).filter(x=>x!=null);return a.length?{n:SB(e.grade,id)?.name||'?',min:Math.min(...a),max:Math.max(...a),avg:a.reduce((x,y)=>x+y,0)/a.length}:null}).filter(Boolean);
  return`<h3>分數分布（${key==='total'?'均分':esc(SB(e.grade,key)?.name)}）</h3>`+hist(v)+`<h3>各科概況</h3>`+range(it)}
-function stuCharts(s,up){
+function stuCharts(s,up,noRank){
  const rs=rounds().filter(r=>(!up||r.date<=up.date)&&pairsOf(r).some(([e,id])=>sc(e,s.id,id)!=null));
  if(!rs.length)return'';
  const lb=rs.map(r=>r.date.slice(5)),nm=[...new Set(rs.flatMap(r=>pairsOf(r).map(([e,id])=>SB(e.grade,id)?.name).filter(Boolean)))];
@@ -92,7 +92,7 @@ function stuCharts(s,up){
  const ser=nm.map(n=>({name:n,v:rs.map(r=>byName(r,n))})).filter(x=>x.v.some(v=>v!=null));
  const rk=rs.map(r=>{const m=rdRanks(r);return[m[s.id]??null,Object.keys(m).length]}),mx=Math.max(2,...rk.map(r=>r[1]));
  let h='<h3>各科成績趨勢</h3>'+line(lb,ser);
- if(rk.some(r=>r[0]))h+='<h3>總分名次變化</h3>'+line(lb,[{name:'名次',v:rk.map(r=>r[0])}],{min:1,max:mx,inv:true,lab:true});
+ if(!noRank&&rk.some(r=>r[0]))h+='<h3>總分名次變化</h3>'+line(lb,[{name:'名次',v:rk.map(r=>r[0])}],{min:1,max:mx,inv:true,lab:true});
  const r0=rs.at(-1),pr=pairsOf(r0);
  if(pr.length>=3){const av=pr.map(([e,id])=>avg(parts(e).map(p=>sc(e,p.id,id)).filter(x=>x!=null))??0);
   h+=`<h3>最近一次：${esc(r0.label)}</h3>`+radar(pr.map(([e,id])=>SB(e.grade,id)?.name||'?'),pr.map(([e,id])=>sc(e,s.id,id)),av)}
@@ -109,10 +109,10 @@ const RCSS=`.rp{width:640px;padding:28px;background:#fff;color:#15202b;font:16px
 .rp .lg{display:flex;gap:4px 12px;font-size:12px;color:#667485;max-width:440px;margin:2px auto 8px}.rp .lg i{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:4px}
 .rp td small{display:block;color:#667485;font-size:12px;line-height:1.3}.rp .ft{margin-top:16px;color:#99a3af;font-size:12px}`;
 function reportHtml(s,rd){
- const pr=pairsOf(rd),multi=rd.exams.length>1,P=partsM(rd.exams),rt=rdRanks(rd),t=tot2(pr,s.id),tv=P.map(p=>tot2(pr,p.id)).filter(x=>x!=null);
- const rows=pr.map(([e,id])=>{const a=parts(e).map(p=>sc(e,p.id,id)).filter(x=>x!=null),r=ranks(e,i=>sc(e,i,id))[s.id],n=nts(e,s.id,id),l=n.s?SL[n.s]:null;
-  return`<tr class="${n.t?'hm':''}"><td>${esc(SB(e.grade,id)?.name)}${multi?`<small>${e.date.slice(5)} ${esc(e.name)}</small>`:''}</td><td>${sc(e,s.id,id)??'缺考'}</td><td>${f1(avg(a))}</td><td>${r?r+' / '+a.length:'–'}</td><td class="c${n.s||''}">${l?l[0]:'–'}</td></tr>${n.t?`<tr class="mm"><td colspan="5">${esc(n.t)}</td></tr>`:''}`}).join('');
- return`<div class="rp"><style>${RCSS}</style><div class="hd"><b>${esc(s.name)}</b><div>${esc(G(rd.exams[0].grade)?.name)}　${esc(rd.label)}　${multi?rd.date+' ～ '+rd.end+'，共 '+rd.exams.length+' 場':rd.date}</div></div><table><tr><th>科目</th><th>分數</th><th>年級平均</th><th>名次</th><th>狀況</th></tr>${rows}<tr class="tt"><td>總分（均分 ${t!=null?f1(t/pr.length):'–'}）</td><td>${t??'–'}</td><td>${f1(avg(tv))}</td><td>${rt[s.id]?rt[s.id]+' / '+Object.keys(rt).length:'–'}</td><td></td></tr></table>${stuCharts(s,rd)}<div class="ft">製作日期 ${today()}　各科名次為同次考試同年級學生；總分名次只計入全科都有分數的學生</div></div>`}
+ const pr=pairsOf(rd),multi=rd.exams.length>1,P=partsM(rd.exams),t=tot2(pr,s.id),tv=P.map(p=>tot2(pr,p.id)).filter(x=>x!=null);
+ const rows=pr.map(([e,id])=>{const a=parts(e).map(p=>sc(e,p.id,id)).filter(x=>x!=null),n=nts(e,s.id,id),l=n.s?SL[n.s]:null;
+  return`<tr class="${n.t?'hm':''}"><td>${esc(SB(e.grade,id)?.name)}${multi?`<small>${e.date.slice(5)} ${esc(e.name)}</small>`:''}</td><td>${sc(e,s.id,id)??'缺考'}</td><td>${f1(avg(a))}</td><td class="c${n.s||''}">${l?l[0]:'–'}</td></tr>${n.t?`<tr class="mm"><td colspan="4">${esc(n.t)}</td></tr>`:''}`}).join('');
+ return`<div class="rp"><style>${RCSS}</style><div class="hd"><b>${esc(s.name)}</b><div>${esc(G(rd.exams[0].grade)?.name)}　${esc(rd.label)}　${multi?rd.date+' ～ '+rd.end+'，共 '+rd.exams.length+' 場':rd.date}</div></div><table><tr><th>科目</th><th>分數</th><th>年級平均</th><th>狀況</th></tr>${rows}<tr class="tt"><td>總分（均分 ${t!=null?f1(t/pr.length):'–'}）</td><td>${t??'–'}</td><td>${f1(avg(tv))}</td><td></td></tr></table>${stuCharts(s,rd,1)}<div class="ft">製作日期 ${today()}　年級平均為同年級學生的平均分數</div></div>`}
 async function exportReport(s,e,note,share){
  const box=document.createElement('div');box.style.cssText='position:fixed;left:-9999px;top:0';box.innerHTML=reportHtml(s,e);document.body.append(box);
  const el=box.firstElementChild,w=el.offsetWidth,h=el.offsetHeight;el.setAttribute('xmlns','http://www.w3.org/1999/xhtml');
