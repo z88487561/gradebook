@@ -13,7 +13,16 @@ const G=id=>S.grades.find(g=>g.id===id),ST=id=>S.students.find(s=>s.id===id),EX=
 const parts=e=>{const ids=new Set(S.students.filter(s=>s.grade===e.grade).map(s=>s.id));Object.keys(S.scores[e.id]||{}).forEach(i=>ST(i)&&ids.add(i));return[...ids].map(ST).sort((a,b)=>cmp(a.name,b.name))};
 const sc=(e,sid,sub)=>S.scores[e.id]?.[sid]?.[sub];
 const total=(e,sid)=>{const v=e.subjects.map(x=>sc(e,sid,x));return v.every(x=>x!=null)?v.reduce((a,b)=>a+b,0):null};
-const ranks=(e,fn)=>{const l=parts(e).map(s=>[s.id,fn(s.id)]).filter(x=>x[1]!=null),m={};l.forEach(([i,v])=>m[i]=1+l.filter(x=>x[1]>v).length);return m};
+const rkP=(P,fn)=>{const l=P.map(s=>[s.id,fn(s.id)]).filter(x=>x[1]!=null),m={};l.forEach(([i,v])=>m[i]=1+l.filter(x=>x[1]>v).length);return m};
+const ranks=(e,fn)=>rkP(parts(e),fn);
+const partsM=ex=>{const m=new Map();ex.forEach(e=>parts(e).forEach(s=>m.set(s.id,s)));return[...m.values()]};
+const pairsOf=rd=>rd.exams.flatMap(e=>e.subjects.map(id=>[e,id]));
+const tot2=(pr,sid)=>{const v=pr.map(([e,id])=>sc(e,sid,id));return v.length&&v.every(x=>x!=null)?v.reduce((a,b)=>a+b,0):null};
+const rdRanks=rd=>rkP(partsM(rd.exams),i=>tot2(pairsOf(rd),i));
+function rounds(){const m=new Map();
+ for(const e of S.exams){const k=e.grp?'g:'+e.grade+':'+e.grp:'e:'+e.id;if(!m.has(k))m.set(k,{key:k,label:e.grp||e.name,exams:[]});m.get(k).exams.push(e)}
+ const l=[...m.values()];l.forEach(r=>{r.exams.sort((a,b)=>a.date.localeCompare(b.date));r.date=r.exams[0].date;r.end=r.exams.at(-1).date});
+ return l.sort((a,b)=>a.date.localeCompare(b.date))}
 const rankLive=(e,sub)=>{const rk=ranks(e,i=>sc(e,i,sub));document.querySelectorAll('[data-r]').forEach(m=>m.textContent=rk[m.dataset.r]?'第'+rk[m.dataset.r]+'名':'')};
 const today=()=>new Date(Date.now()-new Date().getTimezoneOffset()*6e4).toISOString().slice(0,10);
 const gOpts=sel=>S.grades.map(g=>`<option value="${g.id}"${g.id===sel?' selected':''}>${esc(g.name)}</option>`).join('');
@@ -35,8 +44,8 @@ function render(){
 function vExams(){
  if(!S.grades.length)return needG;
  const g0=G(ui.ng)?ui.ng:S.grades[0].id,g=G(g0);
- const list=[...S.exams].sort((a,b)=>b.date.localeCompare(a.date)).map(e=>`<div class="row"><button class="ex" data-act="open" data-id="${e.id}"><b>${esc(e.name)}</b><span>${esc(G(e.grade)?.name)}　${e.date}</span></button><button class="x" data-act="delExam" data-id="${e.id}" aria-label="刪除考試">✕</button></div>`).join('')||'<p class="hint">還沒有考試，先在上方建立第一次考試。</p>';
- return`<form class="card" data-f="exam"><h2>新增考試</h2><select name="grade" data-act="ng">${gOpts(g0)}</select><div class="chips">${g.subjects.filter(s=>s.on).map(s=>`<label><input type="checkbox" name="sub" value="${s.id}" checked>${esc(s.name)}</label>`).join('')||'<small>此年級尚無啟用的科目</small>'}</div><input name="name" placeholder="考試名稱，例如：第一次段考" required><input name="date" type="date" value="${today()}" required><button class="pri">建立考試</button></form>${list}`}
+ const list=[...S.exams].sort((a,b)=>b.date.localeCompare(a.date)).map(e=>`<div class="row"><button class="ex" data-act="open" data-id="${e.id}"><b>${esc(e.name)}</b><span>${e.grp?esc(e.grp)+'　':''}${esc(G(e.grade)?.name)}　${e.date}</span></button><button class="x" data-act="delExam" data-id="${e.id}" aria-label="刪除考試">✕</button></div>`).join('')||'<p class="hint">還沒有考試，先在上方建立第一次考試。</p>';
+ return`<form class="card" data-f="exam"><h2>新增考試</h2><select name="grade" data-act="ng">${gOpts(g0)}</select><div class="chips">${g.subjects.filter(s=>s.on).map(s=>`<label><input type="checkbox" name="sub" value="${s.id}" checked>${esc(s.name)}</label>`).join('')||'<small>此年級尚無啟用的科目</small>'}</div><input name="name" placeholder="考試名稱，例如：第一次段考－國文" required><input name="grp" list="grps" placeholder="所屬考試（選填）：分多天考時，同一次考試填相同名稱"><datalist id="grps">${[...new Set(S.exams.filter(e=>e.grade===g0&&e.grp).map(e=>e.grp))].map(x=>`<option value="${esc(x)}">`).join('')}</datalist><input name="date" type="date" value="${today()}" required><button class="pri">建立考試</button></form>${list}`}
 function vStudents(){
  if(!S.grades.length)return needG;
  const g0=G(ui.ng)?ui.ng:S.grades[0].id;
@@ -76,17 +85,17 @@ function examCharts(e,P,key,fn){
  const it=e.subjects.map(id=>{const a=P.map(s=>sc(e,s.id,id)).filter(x=>x!=null);return a.length?{n:SB(e.grade,id)?.name||'?',min:Math.min(...a),max:Math.max(...a),avg:a.reduce((x,y)=>x+y,0)/a.length}:null}).filter(Boolean);
  return`<h3>分數分布（${key==='total'?'均分':esc(SB(e.grade,key)?.name)}）</h3>`+hist(v)+`<h3>各科概況</h3>`+range(it)}
 function stuCharts(s,up){
- const ex=S.exams.filter(e=>(!up||e.date<=up.date)&&Object.keys(S.scores[e.id]?.[s.id]||{}).length).sort((a,b)=>a.date.localeCompare(b.date));
- if(!ex.length)return'';
- const lb=ex.map(e=>e.date.slice(5)),nm=[...new Set(ex.flatMap(e=>e.subjects.map(x=>SB(e.grade,x)?.name).filter(Boolean)))];
- const byName=(e,n)=>{const id=e.subjects.find(x=>SB(e.grade,x)?.name===n);return id==null?null:sc(e,s.id,id)??null};
- const ser=nm.map(n=>({name:n,v:ex.map(e=>byName(e,n))})).filter(x=>x.v.some(v=>v!=null));
- const rk=ex.map(e=>{const r=ranks(e,i=>total(e,i));return[r[s.id]??null,Object.keys(r).length]}),mx=Math.max(2,...rk.map(r=>r[1]));
+ const rs=rounds().filter(r=>(!up||r.date<=up.date)&&pairsOf(r).some(([e,id])=>sc(e,s.id,id)!=null));
+ if(!rs.length)return'';
+ const lb=rs.map(r=>r.date.slice(5)),nm=[...new Set(rs.flatMap(r=>pairsOf(r).map(([e,id])=>SB(e.grade,id)?.name).filter(Boolean)))];
+ const byName=(r,n)=>{const p=pairsOf(r).find(([e,id])=>SB(e.grade,id)?.name===n);return p?sc(p[0],s.id,p[1])??null:null};
+ const ser=nm.map(n=>({name:n,v:rs.map(r=>byName(r,n))})).filter(x=>x.v.some(v=>v!=null));
+ const rk=rs.map(r=>{const m=rdRanks(r);return[m[s.id]??null,Object.keys(m).length]}),mx=Math.max(2,...rk.map(r=>r[1]));
  let h='<h3>各科成績趨勢</h3>'+line(lb,ser);
  if(rk.some(r=>r[0]))h+='<h3>總分名次變化</h3>'+line(lb,[{name:'名次',v:rk.map(r=>r[0])}],{min:1,max:mx,inv:true,lab:true});
- const e0=ex.at(-1);
- if(e0.subjects.length>=3){const P=parts(e0),av=e0.subjects.map(id=>{const a=P.map(p=>sc(e0,p.id,id)).filter(x=>x!=null);return a.length?a.reduce((x,y)=>x+y,0)/a.length:0});
-  h+=`<h3>最近一次：${esc(e0.name)}</h3>`+radar(e0.subjects.map(id=>SB(e0.grade,id)?.name||'?'),e0.subjects.map(id=>sc(e0,s.id,id)),av)}
+ const r0=rs.at(-1),pr=pairsOf(r0);
+ if(pr.length>=3){const av=pr.map(([e,id])=>avg(parts(e).map(p=>sc(e,p.id,id)).filter(x=>x!=null))??0);
+  h+=`<h3>最近一次：${esc(r0.label)}</h3>`+radar(pr.map(([e,id])=>SB(e.grade,id)?.name||'?'),pr.map(([e,id])=>sc(e,s.id,id)),av)}
  return h}
 /* report card (JPG) */
 const avg=a=>a.length?a.reduce((x,y)=>x+y,0)/a.length:null,f1=x=>x==null?'–':x.toFixed(1);
@@ -98,29 +107,29 @@ const RCSS=`.rp{width:640px;padding:28px;background:#fff;color:#15202b;font:16px
 .rp .cu{color:#c8372d;font-weight:600}.rp .ct{color:#b7791f;font-weight:600}.rp .cf{color:#667485}.rp .hm td{border-bottom:0}.rp .mm td{text-align:left;font-size:14px;padding:0 10px 8px 22px;color:#33414f}
 .rp .ch{width:100%;max-width:440px;height:auto;display:block;margin:0 auto}.rp .g{stroke:#d5dbe3;fill:none}.rp .t{fill:#667485;font-size:10px}
 .rp .lg{display:flex;gap:4px 12px;font-size:12px;color:#667485;max-width:440px;margin:2px auto 8px}.rp .lg i{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:4px}
-.rp .ft{margin-top:16px;color:#99a3af;font-size:12px}`;
-function reportHtml(s,e){
- const P=parts(e),rt=ranks(e,i=>total(e,i)),t=total(e,s.id),tv=P.map(p=>total(e,p.id)).filter(x=>x!=null);
- const rows=e.subjects.map(id=>{const a=P.map(p=>sc(e,p.id,id)).filter(x=>x!=null),r=ranks(e,i=>sc(e,i,id))[s.id],n=nts(e,s.id,id),l=n.s?SL[n.s]:null;
-  return`<tr class="${n.t?'hm':''}"><td>${esc(SB(e.grade,id)?.name)}</td><td>${sc(e,s.id,id)??'缺考'}</td><td>${f1(avg(a))}</td><td>${r?r+' / '+a.length:'–'}</td><td class="c${n.s||''}">${l?l[0]:'–'}</td></tr>${n.t?`<tr class="mm"><td colspan="5">${esc(n.t)}</td></tr>`:''}`}).join('');
- return`<div class="rp"><style>${RCSS}</style><div class="hd"><b>${esc(s.name)}</b><div>${esc(G(s.grade)?.name)}　${esc(e.name)}　${e.date}</div></div><table><tr><th>科目</th><th>分數</th><th>年級平均</th><th>名次</th><th>狀況</th></tr>${rows}<tr class="tt"><td>總分（均分 ${t!=null?f1(t/e.subjects.length):'–'}）</td><td>${t??'–'}</td><td>${f1(avg(tv))}</td><td>${rt[s.id]?rt[s.id]+' / '+Object.keys(rt).length:'–'}</td><td></td></tr></table>${stuCharts(s,e)}<div class="ft">製作日期 ${today()}　名次僅計入同年級同次考試學生</div></div>`}
+.rp td small{display:block;color:#667485;font-size:12px;line-height:1.3}.rp .ft{margin-top:16px;color:#99a3af;font-size:12px}`;
+function reportHtml(s,rd){
+ const pr=pairsOf(rd),multi=rd.exams.length>1,P=partsM(rd.exams),rt=rdRanks(rd),t=tot2(pr,s.id),tv=P.map(p=>tot2(pr,p.id)).filter(x=>x!=null);
+ const rows=pr.map(([e,id])=>{const a=parts(e).map(p=>sc(e,p.id,id)).filter(x=>x!=null),r=ranks(e,i=>sc(e,i,id))[s.id],n=nts(e,s.id,id),l=n.s?SL[n.s]:null;
+  return`<tr class="${n.t?'hm':''}"><td>${esc(SB(e.grade,id)?.name)}${multi?`<small>${e.date.slice(5)} ${esc(e.name)}</small>`:''}</td><td>${sc(e,s.id,id)??'缺考'}</td><td>${f1(avg(a))}</td><td>${r?r+' / '+a.length:'–'}</td><td class="c${n.s||''}">${l?l[0]:'–'}</td></tr>${n.t?`<tr class="mm"><td colspan="5">${esc(n.t)}</td></tr>`:''}`}).join('');
+ return`<div class="rp"><style>${RCSS}</style><div class="hd"><b>${esc(s.name)}</b><div>${esc(G(rd.exams[0].grade)?.name)}　${esc(rd.label)}　${multi?rd.date+' ～ '+rd.end+'，共 '+rd.exams.length+' 場':rd.date}</div></div><table><tr><th>科目</th><th>分數</th><th>年級平均</th><th>名次</th><th>狀況</th></tr>${rows}<tr class="tt"><td>總分（均分 ${t!=null?f1(t/pr.length):'–'}）</td><td>${t??'–'}</td><td>${f1(avg(tv))}</td><td>${rt[s.id]?rt[s.id]+' / '+Object.keys(rt).length:'–'}</td><td></td></tr></table>${stuCharts(s,rd)}<div class="ft">製作日期 ${today()}　各科名次為同次考試同年級學生；總分名次只計入全科都有分數的學生</div></div>`}
 async function exportReport(s,e,note,share){
- const box=document.createElement('div');box.style.cssText='position:fixed;left:-9999px;top:0';box.innerHTML=reportHtml(s,e,note);document.body.append(box);
+ const box=document.createElement('div');box.style.cssText='position:fixed;left:-9999px;top:0';box.innerHTML=reportHtml(s,e);document.body.append(box);
  const el=box.firstElementChild,w=el.offsetWidth,h=el.offsetHeight;el.setAttribute('xmlns','http://www.w3.org/1999/xhtml');
  const x=new XMLSerializer().serializeToString(el);box.remove();
  const img=new Image();await new Promise((ok,no)=>{img.onload=ok;img.onerror=no;img.src='data:image/svg+xml;charset=utf-8,'+encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}"><foreignObject width="100%" height="100%">${x}</foreignObject></svg>`)});
  const c=document.createElement('canvas');c.width=w*2;c.height=h*2;const k=c.getContext('2d');k.scale(2,2);k.fillStyle='#fff';k.fillRect(0,0,w,h);k.drawImage(img,0,0,w,h);
- const b=await new Promise(r=>c.toBlob(r,'image/jpeg',.92)),name=`${s.name}_${e.name}.jpg`,f=new File([b],name,{type:'image/jpeg'});
+ const b=await new Promise(r=>c.toBlob(r,'image/jpeg',.92)),name=`${s.name}_${e.label}.jpg`,f=new File([b],name,{type:'image/jpeg'});
  if(share&&navigator.canShare?.({files:[f]}))await navigator.share({files:[f]}).catch(()=>{});
  else{const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1e4)}
  return b}
 function repCard(s){
- const ex=S.exams.filter(e=>Object.keys(S.scores[e.id]?.[s.id]||{}).length).sort((a,b)=>b.date.localeCompare(a.date));
- if(!ex.length)return'';if(!ex.some(e=>e.id===ui.re))ui.re=ex[0].id;
- return`<div class="card"><h2>成績單</h2><select data-act="re">${ex.map(e=>`<option value="${e.id}"${e.id===ui.re?' selected':''}>${esc(e.name)}　${e.date}</option>`).join('')}</select><div class="btns"><button data-act="rpt">儲存 JPG</button><button data-act="rps">分享</button></div></div>`}
+ const rs=rounds().filter(r=>pairsOf(r).some(([e,id])=>sc(e,s.id,id)!=null)).sort((a,b)=>b.date.localeCompare(a.date));
+ if(!rs.length)return'';if(!rs.some(r=>r.key===ui.re))ui.re=rs[0].key;
+ return`<div class="card"><h2>成績單</h2><select data-act="re">${rs.map(r=>`<option value="${esc(r.key)}"${r.key===ui.re?' selected':''}>${esc(r.label)}${r.exams.length>1?`（${r.exams.length} 場）`:''}　${r.date}</option>`).join('')}</select><div class="btns"><button data-act="rpt">儲存 JPG</button><button data-act="rps">分享</button></div></div>`}
 function vStu(s){
  const ex=S.exams.filter(e=>e.grade===s.grade||S.scores[e.id]?.[s.id]||S.notes[e.id]?.[s.id]).sort((a,b)=>b.date.localeCompare(a.date));
- const hist=ex.map(e=>{const t=total(e,s.id),rk=ranks(e,i=>total(e,i)),n=Object.keys(rk).length;return`<tr><td>${esc(e.name)}</td><td>${e.date.slice(5)}</td><td>${t!=null?(t/e.subjects.length).toFixed(1):'–'}</td><td>${rk[s.id]?rk[s.id]+' / '+n:'–'}</td></tr>`}).join('');
+ const hist=rounds().filter(r=>r.exams.some(e=>e.grade===s.grade||S.scores[e.id]?.[s.id])).sort((a,b)=>b.date.localeCompare(a.date)).map(r=>{const pr=pairsOf(r),t=tot2(pr,s.id),m=rdRanks(r);return`<tr><td>${esc(r.label)}</td><td>${r.date.slice(5)}</td><td>${t!=null?(t/pr.length).toFixed(1):'–'}</td><td>${m[s.id]?m[s.id]+' / '+Object.keys(m).length:'–'}</td></tr>`}).join('');
  const log=ex.map(e=>{const l=e.subjects.map(id=>{const n=nts(e,s.id,id);return n.s||n.t?`<div class="nl"><b>${esc(SB(e.grade,id)?.name)}</b>${n.s?`<i class="pill ${SL[n.s][1]}">${SL[n.s][0]}</i>`:''}${n.t?`<span>${esc(n.t)}</span>`:''}</div>`:''}).join('');return l?`<div class="card"><h2>${esc(e.name)} <small>${e.date}</small></h2>${l}</div>`:''}).join('')||'<p class="hint">尚無紀錄。在考試的成績輸入頁，可一併記錄每科的狀況與備忘。</p>';
  return`<p>${esc(G(s.grade)?.name)}　目前狀況：${pills(cur(s.id))||'<small>無</small>'}</p>${stuCharts(s)}${repCard(s)}<h3>學習狀況與備忘</h3>${log}<h3>歷次考試</h3>${hist?`<div class="scroll"><table class="h"><tr><th>考試</th><th>日期</th><th>均分</th><th>總分名次</th></tr>${hist}</table></div>`:'<p class="hint">尚無考試紀錄。</p>'}`}
 function vExam(e){
@@ -136,7 +145,7 @@ function vExam(e){
   const v=P.map(s=>fn(s.id)).filter(x=>x!=null),f=x=>v.length?x:'–';
   body=`<div class="chips">${[['total','總分'],...e.subjects.map(s=>[s,SB(e.grade,s)?.name])].map(([k,t])=>`<button data-act="sort" data-id="${k}" class="${k===key?'on':''}">${esc(t)}</button>`).join('')}</div><div class="scroll"><table><tr><th>名次</th><th>姓名</th>${e.subjects.map(s=>`<th>${sn(s)}</th>`).join('')}<th>總分</th><th>均分</th></tr>${rows.map(({s,r,t})=>`<tr><td>${r<999?r:'–'}</td><td>${esc(s.name)}</td>${e.subjects.map(x=>`<td>${sc(e,s.id,x)??'–'}</td>`).join('')}<td>${t??'–'}</td><td>${t!=null?(t/e.subjects.length).toFixed(1):'–'}</td></tr>`).join('')}</table></div><p class="hint">有效 ${v.length} 人，平均 ${f((v.reduce((a,b)=>a+b,0)/v.length).toFixed(1))}，最高 ${f(Math.max(...v))}，最低 ${f(Math.min(...v))}。總分排名只計入全科都有分數的學生。</p>`+examCharts(e,P,key,fn);
  }
- return`<div class="seg">${[['input','輸入'],['rank','排名']].map(([k,t])=>`<button data-act="mode" data-id="${k}" class="${ui.mode===k?'on':''}">${t}</button>`).join('')}</div>${body}<div class="btns"><button data-act="expC">匯出 CSV</button><button data-act="impC">匯入 CSV</button><button class="dg" data-act="delExam">刪除考試</button></div>`}
+ return`<div class="seg">${[['input','輸入'],['rank','排名']].map(([k,t])=>`<button data-act="mode" data-id="${k}" class="${ui.mode===k?'on':''}">${t}</button>`).join('')}</div>${body}<div class="btns"><button data-act="grp">所屬考試：${e.grp?esc(e.grp):'無'}</button><button data-act="expC">匯出 CSV</button><button data-act="impC">匯入 CSV</button><button class="dg" data-act="delExam">刪除考試</button></div>`}
 /* csv + files */
 const dl=(n,t,m='text/plain')=>{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([t],{type:m+';charset=utf-8'}));a.download=n;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1e4)};
 const csv=t=>{const r=[];let c=[],f='',q=false;for(let i=0;i<t.length;i++){const h=t[i];if(q){if(h==='"'){if(t[i+1]==='"'){f+='"';i++}else q=false}else f+=h}else if(h==='"')q=true;else if(h===',')c.push(f),f='';else if(h==='\n'){c.push(f);r.push(c);c=[];f=''}else if(h!=='\r')f+=h}if(f||c.length){c.push(f);r.push(c)}return r};
@@ -149,13 +158,14 @@ function impCsv(t){
   const o=S.scores[e.id][st.id]??={};cols.forEach((sid,i)=>{const x=(row[i]||'').trim(),v=Number(x);if(sid&&x!==''&&v>=0&&v<=100)o[sid]=v});n++}
  save();alert(`已匯入 ${n} 位學生`)}
 /* events */
-async function rp(share){try{await exportReport(ST(ui.stu),EX(ui.re),'',share)}catch(err){alert('無法產生圖片，請改用 Chrome 或 Edge 再試')}}
+async function rp(share){try{await exportReport(ST(ui.stu),rounds().find(r=>r.key===ui.re),'',share)}catch(err){alert('無法產生圖片，請改用 Chrome 或 Edge 再試')}}
 const A={
  back(){if(ui.exam)ui.exam=null;else ui.stu=null},
  open(t){ui.exam=t.dataset.id;ui.mode='input';ui.subj=null;ui.sort='total'},
  stu(t){ui.stu=t.dataset.id;ui.mt=[];ui.re=null},
  async rpt(){await rp(0);return 1},async rps(){await rp(1);return 1},tf(t){ui.tf=t.dataset.id},
  mode(t){ui.mode=t.dataset.id},subj(t){ui.subj=t.dataset.id},sort(t){ui.sort=t.dataset.id},
+ grp(){const e=EX(ui.exam),n=prompt('所屬考試名稱（分多天考時，同一次考試填相同名稱；留空＝單獨一場）',e.grp||'');if(n!=null){e.grp=n.trim();save()}},
  mv(t){const g=G(t.dataset.g),l=g.subjects,i=l.findIndex(x=>x.id===t.dataset.id),j=i+ +t.dataset.d;if(j<0||j>=l.length)return;[l[i],l[j]]=[l[j],l[i]];const ix=id=>l.findIndex(x=>x.id===id);S.exams.filter(e=>e.grade===g.id).forEach(e=>e.subjects.sort((a,b)=>ix(a)-ix(b)));save()},
  tog(t){const s=SB(t.dataset.g,t.dataset.id);s.on=!s.on;save()},
  rnG(t){const g=G(t.dataset.id),n=prompt('年級名稱',g.name);if(n?.trim()){g.name=n.trim();save()}},
@@ -188,7 +198,7 @@ document.addEventListener('submit',ev=>{ev.preventDefault();const f=ev.target,d=
  if(k==='grade')S.grades.push({id:uid(),name:d.get('name').trim(),subjects:[]});
  if(k==='sub')d.get('name').split(/[,，、]+/).map(x=>x.trim()).filter(Boolean).forEach(n=>G(f.dataset.g).subjects.push({id:uid(),name:n,on:true}));
  if(k==='stu')d.get('names').split('\n').map(x=>x.trim()).filter(Boolean).forEach(n=>S.students.push({id:uid(),name:n,grade:d.get('grade')}));
- if(k==='exam'){const sub=d.getAll('sub');if(!sub.length)return alert('請至少選一個科目');const e={id:uid(),name:d.get('name').trim(),date:d.get('date'),grade:d.get('grade'),subjects:sub};S.exams.push(e);ui.exam=e.id;ui.mode='input';ui.subj=null}
+ if(k==='exam'){const sub=d.getAll('sub');if(!sub.length)return alert('請至少選一個科目');const e={id:uid(),name:d.get('name').trim(),date:d.get('date'),grade:d.get('grade'),subjects:sub,grp:(d.get('grp')||'').trim()};S.exams.push(e);ui.exam=e.id;ui.mode='input';ui.subj=null}
  save();flush();render()});
 $('#file').onchange=async ev=>{const f=ev.target.files[0];ev.target.value='';if(!f)return;const t=await f.text();
  try{if(fm==='csv')impCsv(t);else if(confirm('匯入會取代目前全部資料，確定？')){const d=JSON.parse(t);if(!d.grades||!d.students)throw 0;S=norm(d);save()}}catch{alert('檔案格式錯誤')}render()};
