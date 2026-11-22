@@ -56,3 +56,6 @@ table.h td:nth-child(2),table.h th:nth-child(2){position:static;text-align:cente
 .sb{display:flex;gap:8px;margin-top:8px}.sb select{width:auto;margin:0}.sb input{margin:0;flex:1;min-width:0}
 .ns{font-weight:600}.ns.s-u,.pill.s-u{color:var(--up);border-color:var(--up)}.ns.s-t,.pill.s-t{color:var(--tr);border-color:var(--tr)}.ns.s-f,.pill.s-f{color:var(--mut);border-color:var(--mut)}
 .nl{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:4px 0}.nl b{min-width:3em}.nl span{flex:1 1 100%;color:var(--mut);font-size:14px}
+
+.ex{flex:1;display:flex;align-items:center;justify-content:space-between;gap:10px;min-width:0;padding:0;border:0;background:none;text-align:left}
+.lb{color:var(--mut);font-size:14px}

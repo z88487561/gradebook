@@ -6,6 +6,7 @@ const dbp=new Promise((ok,no)=>{const r=indexedDB.open('gradebook',1);r.onupgrad
 const kv=async(m,k,v)=>{const d=await dbp;return new Promise((ok,no)=>{const o=d.transaction('kv',m==='get'||m==='keys'?'readonly':'readwrite').objectStore('kv');const r=m==='get'?o.get(k):m==='put'?o.put(v,k):m==='del'?o.delete(k):o.getAllKeys();r.onsuccess=()=>ok(r.result);r.onerror=()=>no(r.error)})};
 let tm;const save=()=>{clearTimeout(tm);tm=setTimeout(async()=>{await kv('put','state',S);await backup()},300)};
 async function backup(){const ks=(await kv('keys')).filter(k=>k.startsWith('bak:')).sort();if(ks.length&&Date.now()-+ks.at(-1).slice(4)<6e5)return;await kv('put','bak:'+Date.now(),JSON.stringify(S));for(const k of ks.slice(0,Math.max(0,ks.length-7)))await kv('del',k)}
+const flush=()=>{clearTimeout(tm);return kv('put','state',S)};addEventListener('visibilitychange',()=>{if(document.hidden)flush()});addEventListener('pagehide',flush);
 const loadBaks=async()=>{ui.baks=(await kv('keys')).filter(k=>k.startsWith('bak:')).sort().reverse()};
 /* model */
 const G=id=>S.grades.find(g=>g.id===id),ST=id=>S.students.find(s=>s.id===id),EX=id=>S.exams.find(e=>e.id===id),SB=(g,id)=>G(g)?.subjects.find(s=>s.id===id);
@@ -34,12 +35,12 @@ function render(){
 function vExams(){
  if(!S.grades.length)return needG;
  const g0=G(ui.ng)?ui.ng:S.grades[0].id,g=G(g0);
- const list=[...S.exams].sort((a,b)=>b.date.localeCompare(a.date)).map(e=>`<button class="row" data-act="open" data-id="${e.id}"><b>${esc(e.name)}</b><span>${esc(G(e.grade)?.name)}　${e.date}</span></button>`).join('')||'<p class="hint">還沒有考試，先在上方建立第一次考試。</p>';
+ const list=[...S.exams].sort((a,b)=>b.date.localeCompare(a.date)).map(e=>`<div class="row"><button class="ex" data-act="open" data-id="${e.id}"><b>${esc(e.name)}</b><span>${esc(G(e.grade)?.name)}　${e.date}</span></button><button class="x" data-act="delExam" data-id="${e.id}" aria-label="刪除考試">✕</button></div>`).join('')||'<p class="hint">還沒有考試，先在上方建立第一次考試。</p>';
  return`<form class="card" data-f="exam"><h2>新增考試</h2><select name="grade" data-act="ng">${gOpts(g0)}</select><div class="chips">${g.subjects.filter(s=>s.on).map(s=>`<label><input type="checkbox" name="sub" value="${s.id}" checked>${esc(s.name)}</label>`).join('')||'<small>此年級尚無啟用的科目</small>'}</div><input name="name" placeholder="考試名稱，例如：第一次段考" required><input name="date" type="date" value="${today()}" required><button class="pri">建立考試</button></form>${list}`}
 function vStudents(){
  if(!S.grades.length)return needG;
  const g0=G(ui.ng)?ui.ng:S.grades[0].id;
- return`<div class="chips">${[['','全部'],['t','需追蹤'],['f','持平'],['u','進步中']].map(([k,l])=>`<button data-act="tf" data-id="${k}" class="${ui.tf===k?'on':''}">${l}</button>`).join('')}</div><form class="card" data-f="stu"><h2>新增學生</h2><select name="grade">${gOpts(g0)}</select><textarea name="names" rows="3" placeholder="姓名，一行一位" required></textarea><button class="pri">加入學生</button></form>`+S.grades.map(g=>{const l=S.students.filter(s=>s.grade===g.id&&(!ui.tf||cur(s.id).some(x=>x.s===ui.tf))).sort((a,b)=>cmp(a.name,b.name));return`<h3>${esc(g.name)}　${l.length} 人</h3>`+l.map(s=>`<div class="row"><b><button class="nm" data-act="stu" data-id="${s.id}">${esc(s.name)}</button>${pills(cur(s.id))}</b><select data-act="sg" data-id="${s.id}">${gOpts(s.grade)}</select><button class="x" data-act="delStu" data-id="${s.id}" aria-label="刪除">✕</button></div>`).join('')}).join('')}
+ return`<div class="chips">${[['','全部'],['t','需追蹤'],['f','持平'],['u','進步中']].map(([k,l])=>`<button data-act="tf" data-id="${k}" class="${ui.tf===k?'on':''}">${l}</button>`).join('')}</div>`+S.grades.map(g=>{const l=S.students.filter(s=>s.grade===g.id&&(!ui.tf||cur(s.id).some(x=>x.s===ui.tf))).sort((a,b)=>cmp(a.name,b.name));return`<h3>${esc(g.name)}　${l.length} 人</h3>`+l.map(s=>`<div class="row"><b><button class="nm" data-act="stu" data-id="${s.id}">${esc(s.name)}</button>${pills(cur(s.id))}</b><select data-act="sg" data-id="${s.id}">${gOpts(s.grade)}</select><button class="x" data-act="delStu" data-id="${s.id}" aria-label="刪除">✕</button></div>`).join('')}).join('')+`<form class="card" data-f="stu"><h2>新增學生</h2><select name="grade">${gOpts(g0)}</select><textarea name="names" rows="3" placeholder="姓名，一行一位" required></textarea><button class="pri">加入學生</button></form>`}
 function vSettings(){
  return`<form class="card" data-f="grade"><h2>新增年級</h2><input name="name" placeholder="例如：國一" required><button class="pri">新增年級</button></form>`+S.grades.map(g=>`<section class="card"><h2>${esc(g.name)}<button class="lnk" data-act="rnG" data-id="${g.id}">改名</button></h2>${g.subjects.map((s,i)=>{const a=`data-g="${g.id}" data-id="${s.id}"`;return`<div class="row sr${s.on?'':' off'}"><b>${esc(s.name)}</b><button class="sm" data-act="tog" ${a}>${s.on?'停用':'啟用'}</button><button class="sm" data-act="rnS" ${a}>改名</button><button class="sm" data-act="mv" ${a} data-d="-1"${i?'':' disabled'} aria-label="上移">↑</button><button class="sm" data-act="mv" ${a} data-d="1"${i<g.subjects.length-1?'':' disabled'} aria-label="下移">↓</button></div>`}).join('')||'<p class="hint">尚無科目，請在下方新增。</p>'}<form data-f="sub" data-g="${g.id}" class="inl"><input name="name" placeholder="新增科目，可用逗號分隔" required><button>新增</button></form></section>`).join('')+`<section class="card"><h2>備份</h2><div class="btns"><button data-act="expJ">匯出 JSON</button><button data-act="impJ">匯入 JSON</button></div>${ui.baks.length?`<select id="bak">${ui.baks.map(k=>`<option value="${k}">${new Date(+k.slice(4)).toLocaleString('zh-TW')}</option>`).join('')}</select><button data-act="rest">還原所選自動備份</button>`:'<small>尚無自動備份（編輯資料後會自動建立）</small>'}</section>`}
 /* charts (hand-rolled SVG) */
@@ -128,7 +129,7 @@ function vExam(e){
  if(!P.length)body='<p class="hint">此年級還沒有學生，請先到「學生」新增。</p>';
  else if(ui.mode==='input'){
   const sub=e.subjects.includes(ui.subj)?ui.subj:e.subjects[0],rk=ranks(e,i=>sc(e,i,sub));
-  body=`<div class="chips">${e.subjects.map(s=>`<button data-act="subj" data-id="${s}" class="${s===sub?'on':''}">${sn(s)}</button>`).join('')}</div>`+P.map(s=>{const n=nts(e,s.id,sub);return`<div class="card st"><div class="sh"><b>${esc(s.name)}</b><em data-r="${s.id}">${rk[s.id]?'第'+rk[s.id]+'名':''}</em><input type="number" inputmode="decimal" min="0" max="100" enterkeyhint="next" placeholder="缺考" data-sid="${s.id}" data-sub="${sub}" value="${sc(e,s.id,sub)??''}"></div><div class="sb"><select class="ns s-${n.s||''}" data-xs="${s.id}" data-sub="${sub}" aria-label="狀況"><option value="">狀況</option>${Object.entries(SL).map(([k,l])=>`<option value="${k}"${n.s===k?' selected':''}>${l[0]}</option>`).join('')}</select><input type="text" placeholder="備忘（選填）" data-xt="${s.id}" data-sub="${sub}" value="${esc(n.t||'')}"></div></div>`}).join('');
+  body=`<div class="chips">${e.subjects.map(s=>`<button data-act="subj" data-id="${s}" class="${s===sub?'on':''}">${sn(s)}</button>`).join('')}</div>`+P.map(s=>{const n=nts(e,s.id,sub);return`<div class="card st"><div class="sh"><b>${esc(s.name)}</b><em data-r="${s.id}">${rk[s.id]?'第'+rk[s.id]+'名':''}</em><span class="lb">分數</span><input type="number" inputmode="decimal" min="0" max="100" enterkeyhint="next" placeholder="缺考" data-sid="${s.id}" data-sub="${sub}" value="${sc(e,s.id,sub)??''}"></div><div class="sb"><select class="ns s-${n.s||''}" data-xs="${s.id}" data-sub="${sub}" aria-label="狀況"><option value="">狀況</option>${Object.entries(SL).map(([k,l])=>`<option value="${k}"${n.s===k?' selected':''}>${l[0]}</option>`).join('')}</select><input type="text" placeholder="備忘（選填）" data-xt="${s.id}" data-sub="${sub}" value="${esc(n.t||'')}"></div></div>`}).join('');
  }else{
   const key=ui.sort==='total'||e.subjects.includes(ui.sort)?ui.sort:'total',fn=key==='total'?i=>total(e,i):i=>sc(e,i,key),rk=ranks(e,fn);
   const rows=P.map(s=>({s,r:rk[s.id]||999,t:total(e,s.id)})).sort((a,b)=>a.r-b.r||cmp(a.s.name,b.s.name));
@@ -151,6 +152,7 @@ function impCsv(t){
 async function rp(share){try{await exportReport(ST(ui.stu),EX(ui.re),'',share)}catch(err){alert('無法產生圖片，請改用 Chrome 或 Edge 再試')}}
 const A={
  back(){if(ui.exam)ui.exam=null;else ui.stu=null},
+ open(t){ui.exam=t.dataset.id;ui.mode='input';ui.subj=null;ui.sort='total'},
  stu(t){ui.stu=t.dataset.id;ui.mt=[];ui.re=null},
  async rpt(){await rp(0);return 1},async rps(){await rp(1);return 1},tf(t){ui.tf=t.dataset.id},
  mode(t){ui.mode=t.dataset.id},subj(t){ui.subj=t.dataset.id},sort(t){ui.sort=t.dataset.id},
@@ -159,7 +161,7 @@ const A={
  rnG(t){const g=G(t.dataset.id),n=prompt('年級名稱',g.name);if(n?.trim()){g.name=n.trim();save()}},
  rnS(t){const s=SB(t.dataset.g,t.dataset.id),n=prompt('科目名稱',s.name);if(n?.trim()){s.name=n.trim();save()}},
  delStu(t){const s=ST(t.dataset.id);if(confirm(`刪除「${s.name}」及其所有成績？`)){S.students=S.students.filter(x=>x!==s);for(const k in S.notes)delete S.notes[k][s.id];for(const k in S.scores)delete S.scores[k][s.id];save()}},
- delExam(){const e=EX(ui.exam);if(confirm('刪除此考試與全部成績？')){S.exams=S.exams.filter(x=>x!==e);delete S.scores[e.id];delete S.notes[e.id];ui.exam=null;save()}},
+ delExam(t){const e=EX(t.dataset.id||ui.exam);if(confirm('刪除此考試與全部成績？')){S.exams=S.exams.filter(x=>x!==e);delete S.scores[e.id];delete S.notes[e.id];ui.exam=null;save()}},
  expC(){const e=EX(ui.exam),g=G(e.grade),q=v=>/[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;
   dl(e.name+'.csv','\uFEFF'+[['姓名','年級',...e.subjects.map(x=>SB(g.id,x).name)],...parts(e).map(s=>[s.name,g.name,...e.subjects.map(x=>sc(e,s.id,x)??'')])].map(r=>r.map(q).join(',')).join('\r\n'),'text/csv');return 1},
  impC(){fm='csv';$('#file').click();return 1},
@@ -187,7 +189,7 @@ document.addEventListener('submit',ev=>{ev.preventDefault();const f=ev.target,d=
  if(k==='sub')d.get('name').split(/[,，、]+/).map(x=>x.trim()).filter(Boolean).forEach(n=>G(f.dataset.g).subjects.push({id:uid(),name:n,on:true}));
  if(k==='stu')d.get('names').split('\n').map(x=>x.trim()).filter(Boolean).forEach(n=>S.students.push({id:uid(),name:n,grade:d.get('grade')}));
  if(k==='exam'){const sub=d.getAll('sub');if(!sub.length)return alert('請至少選一個科目');const e={id:uid(),name:d.get('name').trim(),date:d.get('date'),grade:d.get('grade'),subjects:sub};S.exams.push(e);ui.exam=e.id;ui.mode='input';ui.subj=null}
- save();render()});
+ save();flush();render()});
 $('#file').onchange=async ev=>{const f=ev.target.files[0];ev.target.value='';if(!f)return;const t=await f.text();
  try{if(fm==='csv')impCsv(t);else if(confirm('匯入會取代目前全部資料，確定？')){const d=JSON.parse(t);if(!d.grades||!d.students)throw 0;S=norm(d);save()}}catch{alert('檔案格式錯誤')}render()};
 (async()=>{try{const s=await kv('get','state');if(s)S=norm(s)}catch{}render();navigator.storage?.persist?.();if('serviceWorker'in navigator)navigator.serviceWorker.register('sw.js')})();
