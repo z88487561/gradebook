@@ -85,19 +85,20 @@ function examCharts(e,P,key,fn){
  const v=P.map(s=>fn(s.id)).filter(x=>x!=null).map(x=>key==='total'?x/e.subjects.length:x);if(!v.length)return'';
  const it=e.subjects.map(id=>{const a=P.map(s=>sc(e,s.id,id)).filter(x=>x!=null);return a.length?{n:SB(e.grade,id)?.name||'?',min:Math.min(...a),max:Math.max(...a),avg:a.reduce((x,y)=>x+y,0)/a.length}:null}).filter(Boolean);
  return`<h3>分數分布（${key==='total'?'均分':esc(SB(e.grade,key)?.name)}）</h3>`+hist(v)+`<h3>各科概況</h3>`+range(it)}
-function stuCharts(s,up,noRank){
+function stuCharts(s,up,noRank,split){
  const rs=rounds().filter(r=>(!up||r.date<=up.date)&&pairsOf(r).some(([e,id])=>sc(e,s.id,id)!=null));
- if(!rs.length)return'';
+ if(!rs.length)return split?{}:'';
  const lb=rs.map(r=>r.date.slice(5)),nm=[...new Set(rs.flatMap(r=>pairsOf(r).map(([e,id])=>SB(e.grade,id)?.name).filter(Boolean)))];
  const byName=(r,n)=>{const p=pairsOf(r).find(([e,id])=>SB(e.grade,id)?.name===n);return p?sc(p[0],s.id,p[1])??null:null};
  const ser=nm.map(n=>({name:n,v:rs.map(r=>byName(r,n))})).filter(x=>x.v.some(v=>v!=null));
  const rk=rs.map(r=>{const m=rdRanks(r);return[m[s.id]??null,Object.keys(m).length]}),mx=Math.max(2,...rk.map(r=>r[1]));
- let h=noRank?'':'<h3>各科成績趨勢</h3>'+line(lb,ser);
- if(!noRank&&rk.some(r=>r[0]))h+='<h3>總分名次變化</h3>'+line(lb,[{name:'名次',v:rk.map(r=>r[0])}],{min:1,max:mx,inv:true,lab:true});
+ const tr=noRank?'':'<h3>各科成績趨勢</h3>'+line(lb,ser);
+ const rkh=!noRank&&rk.some(r=>r[0])?'<h3>總分名次變化</h3>'+line(lb,[{name:'名次',v:rk.map(r=>r[0])}],{min:1,max:mx,inv:true,lab:true}):'';
+ let h='';
  const r0=rs.at(-1),pr=pairsOf(r0);
  if(pr.length>=3){const av=pr.map(([e,id])=>avg(parts(e).map(p=>sc(e,p.id,id)).filter(x=>x!=null))??0);
   h+=(noRank?'<h3>最近一次考試能力雷達圖（與年級平均對照）</h3>':`<h3>最近一次：${esc(r0.label)}</h3>`)+radar(pr.map(([e,id])=>SB(e.grade,id)?.name||'?'),pr.map(([e,id])=>sc(e,s.id,id)),av)}
- return h}
+ return split?{trend:tr,rank:rkh,radar:h}:tr+rkh+h}
 /* report card (JPG) */
 const avg=a=>a.length?a.reduce((x,y)=>x+y,0)/a.length:null,f1=x=>x==null?'–':x.toFixed(1);
 const RCSS=`.rp{width:640px;padding:28px;background:#fff;color:#15202b;font:16px/1.5 "Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,sans-serif;box-sizing:border-box}
@@ -157,10 +158,11 @@ function repCard(s){
  if(!rs.length)return'';if(!rs.some(r=>r.key===ui.re))ui.re=rs[0].key;
  return`<div class="card"><h2>成績單</h2><select data-act="re">${rs.map(r=>`<option value="${esc(r.key)}"${r.key===ui.re?' selected':''}>${esc(r.label)}${r.exams.length>1?`（${r.exams.length} 場）`:''}　${r.date}</option>`).join('')}</select><div class="btns"><button data-act="rpt">儲存 JPG</button><button data-act="rps">分享</button></div></div>`}
 function vStu(s){
+ const ch=stuCharts(s,0,0,1);
  const ex=S.exams.filter(e=>e.grade===s.grade||S.scores[e.id]?.[s.id]||S.notes[e.id]?.[s.id]).sort((a,b)=>b.date.localeCompare(a.date));
  const hist=rounds().filter(r=>r.exams.some(e=>e.grade===s.grade||S.scores[e.id]?.[s.id])).sort((a,b)=>b.date.localeCompare(a.date)).map(r=>{const pr=pairsOf(r),t=tot2(pr,s.id),m=rdRanks(r);return`<tr><td>${esc(r.label)}</td><td>${r.date.slice(5)}</td><td>${t!=null?(t/pr.length).toFixed(1):'–'}</td><td>${m[s.id]?m[s.id]+' / '+Object.keys(m).length:'–'}</td></tr>`}).join('');
  const log=ex.map(e=>{const l=e.subjects.map(id=>{const n=nts(e,s.id,id);return n.s||n.t?`<div class="nl"><b>${esc(SB(e.grade,id)?.name)}</b>${n.s?`<i class="pill ${SL[n.s][1]}">${SL[n.s][0]}</i>`:''}${n.t?`<span>${esc(n.t)}</span>`:''}</div>`:''}).join('');return l?`<div class="card"><h2>${esc(exName(e))} <small>${e.date}</small></h2>${l}</div>`:''}).join('')||'<p class="hint">尚無紀錄。在考試的成績輸入頁，可一併記錄每科的狀況與備忘。</p>';
- return`<p>${esc(G(s.grade)?.name)}　目前狀況：${pills(cur(s.id))||'<small>無</small>'}</p>${stuCharts(s)}${repCard(s)}<h3>學習狀況與備忘</h3>${log}<h3>歷次考試</h3>${hist?`<div class="scroll"><table class="h"><tr><th>考試</th><th>日期</th><th>均分</th><th>總分名次</th></tr>${hist}</table></div>`:'<p class="hint">尚無考試紀錄。</p>'}`}
+ return`<p>${esc(G(s.grade)?.name)}　目前狀況：${pills(cur(s.id))||'<small>無</small>'}</p><h3>學習狀況與備忘</h3>${log}${repCard(s)}${ch.radar||''}${ch.trend||''}${ch.rank||''}<h3>歷次考試</h3>${hist?`<div class="scroll"><table class="h"><tr><th>考試</th><th>日期</th><th>均分</th><th>總分名次</th></tr>${hist}</table></div>`:'<p class="hint">尚無考試紀錄。</p>'}`}
 function vExam(e){
  const sn=id=>esc(SB(e.grade,id)?.name||'?'),P=parts(e);
  let body;
