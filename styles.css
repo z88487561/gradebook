@@ -59,3 +59,4 @@ table.h td:nth-child(2),table.h th:nth-child(2){position:static;text-align:cente
 
 .ex{flex:1;display:flex;align-items:center;justify-content:space-between;gap:10px;min-width:0;padding:0;border:0;background:none;text-align:left}
 .lb{color:var(--mut);font-size:14px}
+#q{width:100%;box-sizing:border-box;margin-bottom:8px}
