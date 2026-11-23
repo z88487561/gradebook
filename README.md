@@ -19,7 +19,7 @@ https://z88487561.github.io/gradebook/
 - **個人歷次趨勢分析**：自動彙整單一學生的歷次考試表現，繪製「各科成績趨勢折線圖」、「最近一次考試能力雷達圖（與年級平均對照）」。
 
 ### 🖼️ 成績單匯出與分享
-- **一鍵產出 JPG 成績單**：選擇特定考試後，系統會將個人各科分數、、逐科狀況與備忘，搭配趨勢圖表渲染為高解析度（2x）JPG 圖片。
+- **一鍵產出 JPG 成績單**：選擇特定考試後，系統會將個人各科分數、、逐科狀況與備忘渲染為高解析度（2x）JPG 圖片。
 - **原生分享支援**：在支援 Web Share API 的行動裝置上，可直接透過系統分享選單傳送成績單圖片。
 
 ### 💾 離線運作、PWA 管理與資料安全
@@ -38,7 +38,7 @@ https://z88487561.github.io/gradebook/
 - **前端核心**：Vanilla JavaScript (ES2022+)、HTML5、CSS3（支援深色模式 `prefers-color-scheme: dark` 與手機安全區域適配 `safe-area-inset`）
 - **資料持久化**：IndexedDB (`kv` ObjectStore) + `navigator.storage.persist()` + `visibilitychange` / `pagehide` 即時寫入
 - **PWA 管理模組**：獨立 `pwa-manage.js`（Shadow DOM 封裝安裝按鈕、狀態提示與前綴限定資料清除）
-- **圖表繪製**：原生動態生成 SVG（折線圖、雷達圖、直方圖、區間圖）
+- **圖表繪製**：原生動態生成 SVG
 - **圖片轉檔**：SVG `<foreignObject>` 結合 HTML5 `<canvas>` 匯出 JPEG
 - **離線支援**：Web App Manifest + Service Worker（目前快取版本 `gradebook-v9`）
 
